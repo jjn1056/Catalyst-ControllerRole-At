@@ -1,0 +1,409 @@
+package Catalyst::ControllerRole::At;
+
+use Moose::Role;
+
+1;
+
+=head1 NAME
+
+Catalyst::ControllerRole::At - A new approach to building Catalyst actions
+
+=head1 SYNOPSIS
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    At($controller/foo) => Chained(/) PathPart($controller/foo) Args(0) { ... }
+    At($controller/foo/{*}) => Chained(/) PathPart($controller/foo) Args { ... }
+    At($controller/foo/{}) => Chained(/) PathPart($controller/foo) Args(1) { ... }
+    At($controller/foo/{:Int}) => Chained(/) PathPart($controller/foo) Args(Int) { ... }
+    At($controller/foo/{id:Int}) => 
+    Chained(/) PathPart($controller/foo) Args(Int) Does(NamedFields) Field(id=>$args[0]) { ... }
+
+
+    __PACKAGE__->meta->make_immutable;
+
+=head1 DESCRIPTION
+
+The way L<Catalyst> uses method attributes to annote a subroutine with meta
+information used to map that action to a URL template has often been difficult
+for newcomers to the framework, compared to more straightforward systems seen in
+other popular frameworks.  Partly this is due to how the system evolved and was
+augmented, with more care towards backcompatibility (for example with L<Maypole>, its
+architectural anscestor) than with designing a forward system that is easy to grasp.
+Additionally aspects of the system such as chained dispatch are very useful in the
+hands of an expert but the interface leaves a lot to be desired.
+
+Lastly, the core L<Catalyst> syntax has confusing defaults that are not readily guessed.
+For example do you know the difference (if any) between Args and Args()?  Or the difference
+between Path, Path(''), and Path()?  In many cases defaults are applied that were not
+intended.  This alternative syntax for the most part eliminates defaults and guessed
+intentions.
+
+This ControllerRole is an attempt to layer some sugar on top of the existing interface
+with the hope to establishing a normalized, easy approach that doesn't have the
+learning curve or confusion of the existing system.
+
+I also recommend reading L<Catalyst::RouteMatching> for general notes and details on
+how dispatching and matching works.
+
+=head1 URL Templating
+
+The following are examples and specification for how to map a URL to an action or to
+a chain of actions in L<Catalyst>. All examples assume the application is running at
+the root of your website domain (https://localhost/, not https://localhost/somepath)
+
+=head2 Matching a Literal Path
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub global_path :At(/foo/bar/baz) { ... }
+
+    __PACKAGE__->meta->make_immutable;
+
+The action 'global_path' will respond to 'https://localhost/foo/bar/baz'.
+
+=head2 Arguments in a Path specification
+
+Often you wish to parameterize your URL template such that instead of matching a full
+literal path, you may instead place slots for placeholders, which get passed to the
+action during a request.  For example:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub args :At(/example/{}) {
+      my ($self, $c, $arg) = @_;     
+    }
+
+    __PACKAGE__->meta->make_immutable;
+
+In the above controller we'd match a URL like 'https://localhost/example/100' and
+'https://localhost/example/whatever'.  The parameterized argument is passed as '$arg'
+into the action when a request is matched.
+
+You may have as many argument placeholders as you wish, or you may specific an open
+ended number of placeholders:
+
+    sub arg2 :At(/example/{}/{}) { ... }  # https://localhost/example/foo/bar
+    sub args :At(/example/{@} { ... }     # https://localhost/example/1/2/3/4/...
+
+In this case action 'arg2' matches its path with 2 arguments, while 'args' will match
+'any number of arguments', subject to operating system limitations.
+
+B<NOTE> Since the open ended argument specification can catch lots of URLs, this type
+of argument specification is run as a special 'low priorty' match.  For example (using
+the above two actions) should the request be 'https://localhost/example/foo/bar', then
+the first action 'arg2' would match since its a better match for that request given it
+has a more constrained specification. In general I recommend using '{@}' sparingly.
+
+=head2 Naming your Arguments
+
+You may name your argument placeholders.  If you do so you can access your argument
+placeholder values via the %_ hash.  For example:
+
+    sub args :At(/example/{id}) {
+      my ($self, $c, $id) = @_;
+      $c->response->body("The requested ID is $_{id}");
+    }
+
+Note that regardless of whether you name your arguments or not, they will get passed to
+your actions at request via @_, as in core L<Catalyst>.
+
+=head2 Type constraints on your Arguments
+
+You may leverage the built in support for applying type constraints on your arguments:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub args :At(/example/{id:Int}) {
+      my ($self, $c, $id) = @_;     
+    }
+
+    __PACKAGE__->meta->make_immutable;
+
+Would match 'http://localhost/example/100' but not 'http://localhost/example/string'
+
+All the same rules that apply to L<Catalyst> regarding use of type constraints apply.  Most
+importantly you must remember in inport your type constraints, as in the above example.  You
+should consider reviewing L<Catalyst::RouteMatching> for more general help.
+
+You may declare a type constraint on an argument but not name it, as in the following
+example:
+
+    sub args :At(/example/{:Int}) {
+      my ($self, $c, $id) = @_;     
+    }
+
+Note the ':' prepended to the type constraint name is NOT optional.
+
+=head2 Expansion Variables in your Path
+
+Generally you would prefer not to hardcode the full path of your actions, as in the
+examples given so far.  General Catalyst best practice is to have your actions live
+under the namespace of the controller in which they are defined.  That makes things
+more organized and easier to find as your application grows in complexity.  In order
+to make this and other common action template patterns easier, we support the following
+variable expansions in your URL template specification:
+
+    $controller: Your controller namespace (as an absolute path)
+    $action: the subroutine name of your action.
+    $here: expands the same way as "$controller/$action"
+    $local: expands the same way as "$controller/$action/{*}"
+
+You use these variable expansions the same way as literal paths:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub args :At($controller/{id:Int}) {
+      my ($self, $c, $id) = @_;     
+    }
+
+    sub list :At($local) { ... }
+
+    __PACKAGE__->meta->make_immutable;
+
+In this example the action 'args' would match 'https://localhost/example/100' (with '100' being
+considered an argument) while action 'list' would match 'https::/localhost/example/list/..'.
+
+You can use expansion variables in your base controllers or controller roles to more
+easily make shared actions.
+
+B<NOTE> Your controller namespace is typically based on its package name, unless you
+have overridden it by setting an alternative in the configuation value 'namespace', or
+your have in some way overridden the logic that produces a namespace.  The default
+behavior is to produce a namespace like the following:
+
+    package MyApp::Controller::User => /user
+    package MyApp::Controller::User::name => /user/name
+
+=head2 Matching GET parameters
+
+You can match GET (query) parameters in your URL template definitions:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int Str/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub query :At($here?{name:Str}{age:Int}) {
+      my ($self, $c, $id) = @_;     
+    }
+
+    __PACKAGE__->meta->make_immutable;
+
+This would match 'https://example/query?name=john;age=47'.
+
+Your query keys will appear in the %_ in the same way as all your named arguments.
+
+You do not need to use a type constraint on the query parameters.  If you do not do so
+all that is required is that the requested query parameters exist.
+
+This uses the ActionRole L<Catalyst::ActionRole::QueryParameter> under the hood, which
+you may wish to review for more details.
+
+=head2 Chaining Actions inside a Controller
+
+L<Catalyst> action chaining allows you to spread the logic associated with a given URL
+across a set of actions which all are responsible for handling a part of the URL
+template.  The idea is to allow you to better decompose your logic to promote clarity
+and reuse.  However the built in syntax for declaring action chains leaves a lot to be
+desired.  Here's how you do it with L<Catalyst::ControllerRole::At>
+
+Starting a Chain of actions is straightforward.  you just add '/...' to the end of your
+path specification.  For example:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int Str/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub init :At($controller/...) { ... }
+    
+    __PACKAGE__->meta->make_immutable;
+
+The action 'init' starts a new chain of actions and declares the first part of the
+definition, 'https://localhost/example/...'.  You continue an chain in the same way,
+but you need to specify the parent action that is being continued using the 'Via'
+attribute.  You terminate a chain when you define an action that doesn't declare '...'
+as the last path.  For example:
+
+    sub init :At($controller/...) {
+      my ($self, $c) = @_;
+    }
+
+      sub next :Via(init) At({}/...) {
+        my ($self, $c, $arg) = @_;
+      }
+
+        sub last :Via(next) At({}) {
+          my ($self, $c, $arg) = @_;
+        }
+
+This defines an action chain with three 'stops' which matches a URL like (for example)
+'https://localhost/$controller/arg1/arg2'.
+
+When chaining you can use (or not) any mix of type constraints on your arguments, named
+arguments, and query parameter matching.  Here's a full example:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub init :At($controller/...) { ... }
+
+      sub next :Via(init) At({id:Int}/...) {
+        my ($self, $c, $id) = @_;
+      }
+
+        sub last :Via(next) At({id:Int}) {
+          my ($self, $c, $id) = @_;
+        }
+
+    __PACKAGE__->meta->make_immutable;
+
+=head2 Actions in a Chain with no match template
+
+Sometimes for the purposes of organizing code you will have an action that is a
+midpoint in a chain that does not match any part of a URL template.  For that
+case you can omit the path and argument match specification.  For example:
+
+    package MyApp::Controller::Example;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+    use Types::Standard qw/Int/;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub init :At($controller/...) { ... }
+
+      sub middle :Via(init) At(...) {
+        my ($self, $c) = @_;
+      }
+
+        sub last :Via(next) At({id:Int}) {
+          my ($self, $c, $id) = @_;
+        }
+
+    __PACKAGE__->meta->make_immutable;
+
+This will match a URL like 'https://localhost/example/100'.
+
+B<NOTE> If you declare a Via but not At, this means the action is a terminal one
+that has no literal path or arguments
+
+=head2 Chaining Actions across Controllers
+
+For the case when you are continuing your chained actions across controllers
+we provide some template expansions you can use in the 'Via' attribute.
+
+    $up: The controller whose namespace contains the current controller
+    $action: The name of the current actions subroutine
+    $parent: Expands to $up/$action
+
+For example:
+
+    package MyApp::Controller::ThingsTodo;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub init :At($controller/...) {
+      my ($self, $c) = @_;
+    }
+
+      sub list :Via(init) At($action) {
+        my ($self, $c) = @_;
+      }
+
+    __PACKAGE__->meta->make_immutable;
+
+    package MyApp::Controller::ThingsTodo::Item;
+
+    use Moose;
+    use MooseX::MethodAttributes;
+
+    extends 'Catalyst::Controller';
+    with 'Catalyst::ControllerRole::At';
+
+    sub init :Via($parent) At({id:Int}/...) {
+      my ($self, $c) = @_;
+    }
+
+      sub show    :Via(init) At($action) { ... }
+      sub update  :Via(init) At($action) { ... }
+      sub delete  :Via(init) At($action) { ... }
+
+    __PACKAGE__->meta->make_immutable;
+
+This creates four (4) URL templates:
+
+    https://localhost/thingstodo/list
+    https://localhost/thingstodo/:id/show
+    https://localhost/thingstodo/:id/update
+    https://localhost/thingstodo/:id/delete
+
+=head1 AUTHOR
+ 
+John Napiorkowski L<email:jjnapiork@cpan.org>
+  
+=head1 SEE ALSO
+ 
+L<Catalyst>, L<Catalyst::Controller>.
+ 
+=head1 COPYRIGHT & LICENSE
+ 
+Copyright 2016, John Napiorkowski L<email:jjnapiork@cpan.org>
+ 
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl itself.
+
+=cut
