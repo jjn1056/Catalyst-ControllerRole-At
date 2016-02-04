@@ -2,6 +2,45 @@ package Catalyst::ControllerRole::At;
 
 use Moose::Role;
 
+sub _parse_At_attr {
+  my ($self, $app, $action_subname, $value) = @_;
+  my ($chained, $path_part, $arg_type, $args) = ('/','','Args',0);
+
+  my ($path, $query) = split('\?', $value);
+  my @path_parts = split('/', $path);
+  my @controller_path_parts = split('/', $self->path_prefix($app));
+
+  my %expansions = (
+    # '$up' => ,
+    #'$parent' => ,
+    '$subname' => $action_subname,
+    '$controller' => '/' . join('/', @controller_path_parts),
+    '$action' => '/' . join('/', @controller_path_parts, $action_subname),
+  );
+
+  if(
+    my $via = grep { $_ =~m/^Via\((.+)\)$/; $1 } 
+      @{$self->meta->get_method($action_subname)->attributes||[]})
+  {
+    # expand placeholders
+    # set $chained
+    warn $via;
+  }
+
+  warn $action_subname;
+  warn $value;
+
+  use Devel::Dwarn;
+  Dwarn \%expansions;
+
+  $path_part = join('/', @path_parts);
+
+  return (
+    Chained   => $chained,
+    PathPart  => $path_part, 
+    $arg_type => $args);
+}
+
 1;
 
 =head1 NAME
@@ -20,17 +59,14 @@ Catalyst::ControllerRole::At - A new approach to building Catalyst actions
     with 'Catalyst::ControllerRole::At';
 
     # Define your actions, for example:
+    
+    sub global :At(/global/{}/{}) { ... }         # http://localhost/global/$arg/$arg
 
-    sub list :At($action?{q:Str}) { ... }
+    sub list   :At($action?{q:Str}) { ... }       # http://localhost/user/list?q=$string
 
-    sub find :At($controller/{id:Int}) { ... }
+    sub find   :At($controller/{id:Int}) { ... }  # http://localhost/user/$integer
 
     __PACKAGE__->meta->make_immutable;
-
-Makes two routes matching:
-
-    https://localhost/user/list?q=byage
-    https://localhost/user/100
 
 =head1 DESCRIPTION
 
@@ -121,7 +157,7 @@ You may have as many argument placeholders as you wish, or you may specific an o
 ended number of placeholders:
 
     sub arg2 :At(/example/{}/{}) { ... }  # https://localhost/example/foo/bar
-    sub args :At(/example/{@} { ... }     # https://localhost/example/1/2/3/4/...
+    sub args :At(/example/{*} { ... }     # https://localhost/example/1/2/3/4/...
 
 In this case action 'arg2' matches its path with 2 arguments, while 'args' will match
 'any number of arguments', subject to operating system limitations.
@@ -130,7 +166,7 @@ B<NOTE> Since the open ended argument specification can catch lots of URLs, this
 of argument specification is run as a special 'low priorty' match.  For example (using
 the above two actions) should the request be 'https://localhost/example/foo/bar', then
 the first action 'arg2' would match since its a better match for that request given it
-has a more constrained specification. In general I recommend using '{@}' sparingly.
+has a more constrained specification. In general I recommend using '{*}' sparingly.
 
 B<NOTE> Placeholder must come after path part literals or expansion variables as discussed
 below.  For example "At(/bar/{}/bar)" is not valid.  This type of match is possible with
@@ -185,6 +221,19 @@ example:
     }
 
 Note the ':' prepended to the type constraint name is NOT optional.
+
+B<NOTE> Using type constraints in your route matching can have performance implications.
+
+B<NOTE> If you have more than one argument placeholder and you apply a type constraint to
+one, you must apply constraints to all.  You may use an open type constraint like C<Any>
+as defined in L<Types::Standard> for placeholders where you don't care what the value is.  For
+example:
+
+    use Types::Standard qw/Any Int/;
+
+    sub args :At(/example/{:Any}/{:Int}) {
+      my ($self, $c, $id) = @_;     
+    }
 
 =head2 Expansion Variables in your Path
 
@@ -297,16 +346,19 @@ reuse and conciseness at some cost to immediate understanding.  For example:
     extends 'Catalyst::Controller';
     with 'Catalyst::ControllerRole::At';
 
-    sub query :At($action?{@:SearchParams}) {
+    sub query :At($action?{*:SearchParams}) {
       my ($self, $c, $id) = @_;     
     }
 
     __PACKAGE__->meta->make_immutable;
 
-In this case the '@' indicates that the constraint C<SearchParams> is to recieve all the GET parameters
-as a reference (it basically gets the value stored in $c->request->query_parameters).  
+In this case the '*' indicates that the constraint C<SearchParams> is to recieve all the GET parameters
+as a reference (it basically gets the value stored in $c->request->query_parameters).
 
 Please see L<Catalyst::ActionRole::QueryParameter>  for more.
+
+B<NOTE> If you use this type of GET query parameter constraint, your query keys will not
+be mapped to %_, as they do if you explicitly name them.
 
 =head2 Chaining Actions inside a Controller
 

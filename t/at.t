@@ -1,103 +1,50 @@
-BEGIN {
-  use Test::Most;
-  eval "use Catalyst 5.90093; 1" || do {
-    plan skip_all => "Need a newer version of Catalyst => $@";
-  };
-}
 
 {
-  package MyApp::Controller::Root;
-  $INC{'MyApp/Controller/Root.pm'} = __FILE__;
+  package MyApp::Controller::User::Records;
+  $INC{'MyApp/Controller/User/Records.pm'} = __FILE__;
 
-  use base 'Catalyst::Controller';
+  use Moose;
+  use MooseX::MethodAttributes;
+  use Types::Standard qw/Int Str/;
 
-  sub one :Chained(/) Args(1) { }
-  sub two :Chained(/) PathPart() Args(1) { }
-  sub thr :Chained(/) PathPart('') Args(1) { }
-  
-  MyApp::Controller::Root->config(namespace=>'');
+  extends 'Catalyst::Controller';
+  with 'Catalyst::ControllerRole::At';
 
-  package MyApp::Controller::Example;
-  $INC{'MyApp/Controller/Example.pm'} = __FILE__;
+  # http://localhost/global/$arg/$arg 
+  sub global :At(/global/{}/{}) {
+    my ($self, $c, $arg1, $arg2) = @_;
+  }         
 
-  use base 'Catalyst::Controller';
-
-  sub one1 :Chained(/) At(controller/{$}/...) Args(1) { }
-  sub two1 :Chained(/) At($controller/{$}/...) PathPart Args(1) { }
-  sub thr1 :Chained(/) At($controller/{$}/...) PathPart('') Args(1) { }
-
-  sub _parse_At_attr {
-    my ( $self, $app, $name, $value ) = @_;
-    my %extra;
-    my @attributes = @{$self->meta->get_method($name)->attributes||[]};
-
-    my $via_expansions = (
-      '..' => ,
-      'parent' => , # ../$action
-    );
-
-    my $args_type = 'Args';
-    my $path_parts;
-
-    my @args = ();
-    my 
-    foreach my $attr(@attributes) {
-      if(my ($val) = $attr=~m/^At\((.+)\)$/i) {
-        my ($path, $query) = split('\?', $val);
-        my @parts = split '/', $val;
-        
-        foreach my $part (@parts) {
-          $path_parts .= '/' if $part eq '';
-          $path_parts .= $self->path_prefix.'/' if $part eq '$controller';
-          $path_parts .= $self->path_prefix.'/' if $part eq '.';
-          $part_parts .= $name.'/' if $path eq '$action';
-          $part_parts .= $self->path_prefix .'/'. $name .'/' if $path eq '$location';
-          $args_type = 'CaptureArgs' if $path = '...';
-        }
-
-        
-      } elsif(my ($val) = $attr=~/^Via\((.+)\)$/i) {
-        warn $val;
-      }
-    }
-
-use Devel::Dwarn;
-#Dwarn \@attributes;
-#Dwarn \@_;
-
-Dwarn \%extra;
-Dwarn $args_type;
-Dwarn $path_parts;
-
-    return ();# %extra;
-  }
-
-  #MyApp::Controller::Example->config(namespace=>'ee');
+  __PACKAGE__->meta->make_immutable;
 
   package MyApp;
   use Catalyst;
-  
+
   MyApp->setup;
 }
 
+use Test::Most;
 use HTTP::Request::Common;
 use Catalyst::Test 'MyApp';
 
-warn MyApp->controller('Root')->path_prefix;
-warn MyApp->controller('Root')->action_namespace;
-warn MyApp->controller('Example')->path_prefix;
-warn MyApp->controller('Example')->action_namespace;
-
-ok 1;
-
-#{
-  #ok my $res = request GET "/root/echo?q=foo bar baz ♥";
-  #is_deeply eval $res->content, [qw/foo bar baz ♥/];
-#}
+{
+  ok my $res = request GET "/global/1/2";
+}
    
 done_testing;
 
 __END__
+
+  # http://localhost/user/list?q=$string
+  sub list :At($action?{q:Str}) {
+    my ($self, $c) = @_;
+  }       
+
+  # http://localhost/user/$integer
+  sub find :At($controller/{id:Int}) {
+    my ($self, $c, $int) = @_;
+  }  
+
 
 PathPart and PathPart() are the same
 No given PathPart is the same as saying PathPart (or PathPart()).
