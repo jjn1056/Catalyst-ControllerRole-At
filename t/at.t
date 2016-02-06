@@ -13,7 +13,16 @@
   # http://localhost/global/$arg/$arg 
   sub global :At(/global/{}/{}) {
     my ($self, $c, $arg1, $arg2) = @_;
-  }         
+  }
+
+  sub int :At(/int/{:Int}) {
+    my ($self, $c, $arg1, $arg2) = @_;
+  }
+
+  sub int2 :At(/int/{:Int}/{str:Str}) {
+    my ($self, $c, $arg1, $arg2) = @_;
+    $_->res->body($_{str});
+  }
 
   __PACKAGE__->meta->make_immutable;
 
@@ -29,8 +38,30 @@ use Catalyst::Test 'MyApp';
 
 {
   ok my $res = request GET "/global/1/2";
+  is $res->code, 200;
 }
-   
+
+{
+  ok my $res = request GET "/int/100";
+  is $res->code, 200;
+}
+  
+{
+  ok my $res = request GET "/int/xxx";
+  is $res->code, 500;
+}
+
+{
+  ok my $res = request GET "/int/100/333";
+  is $res->code, 200;
+  is $res->content, '333';
+}
+  
+{
+  ok my $res = request GET "/int/xxx/xxxs";
+  is $res->code, 500;
+}
+
 done_testing;
 
 __END__

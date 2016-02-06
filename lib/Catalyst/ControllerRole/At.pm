@@ -4,12 +4,9 @@ use Moose::Role;
 
 sub _parse_At_attr {
   my ($self, $app, $action_subname, $value) = @_;
-  my ($chained, $path_part, $arg_type, $args) = ('/','','Args',0);
-
-  my ($path, $query) = split('\?', $value);
-  my @path_parts = split('/', $path);
+  my ($chained, $path_part, $arg_type, $args, %extra_proto) = ('/','','Args',0, ());
+  
   my @controller_path_parts = split('/', $self->path_prefix($app));
-
   my %expansions = (
     # '$up' => ,
     #'$parent' => ,
@@ -17,6 +14,25 @@ sub _parse_At_attr {
     '$controller' => '/' . join('/', @controller_path_parts),
     '$action' => '/' . join('/', @controller_path_parts, $action_subname),
   );
+
+  my ($path, $query) = split('\?', $value);
+  my ($root, @path_parts) = split('/', $path);
+
+  my @arg_proto;
+  while(my ($spec) = ($path_parts[-1] =~m/^{(.*)}$/)) {
+    if($spec) {
+      my ($name, $constraint) = split(':', $spec);
+      unshift @arg_proto, $constraint;
+      if($name) {
+        $extra_proto{Field} = $extra_proto{Field} ? "$extra_proto{Field},\$args[$args]" : "$name=>\$args[$args]";
+      }
+    }
+
+    $args++;
+    pop @path_parts;
+  }
+
+
 
   if(
     my $via = grep { $_ =~m/^Via\((.+)\)$/; $1 } 
@@ -27,18 +43,24 @@ sub _parse_At_attr {
     warn $via;
   }
 
-  warn $action_subname;
-  warn $value;
+  # warn $action_subname;
+  #warn $value;
 
   use Devel::Dwarn;
-  Dwarn \%expansions;
+  #Dwarn \%expansions;
+  #Dwarn \%extra_proto;
 
   $path_part = join('/', @path_parts);
+
+
 
   return (
     Chained   => $chained,
     PathPart  => $path_part, 
-    $arg_type => $args);
+    $arg_type => (@arg_proto ? (join(',',@arg_proto)) : $args),
+    ($extra_proto{Field} ? (Does=>'NamedFields') : ()),
+    %extra_proto,
+  );
 }
 
 1;
@@ -94,6 +116,10 @@ over differences between 'classic' route matching using :Local and :Path and the
 syntax based on Chaining by providing a single approach that bridges between the two
 styles.  One can mix and match the two without being required to learn a new syntax or to
 rearchitect the system.
+
+The "At()" syntax more closely resembles the type of URL you are trying to match, which should
+make code creation and maintainance easier by reducing the mental mismatch that happens with
+the core syntax.
 
 Ultimately this ControllerRole is an attempt to layer some sugar on top of the existing
 interface with the hope to establishing a normalized, easy approach that doesn't have the
