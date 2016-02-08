@@ -213,8 +213,6 @@ use Catalyst::Test 'MyApp';
   is $res->code, 400;
 }
 
-
-
 done_testing;
 
 __END__

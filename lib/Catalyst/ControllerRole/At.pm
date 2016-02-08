@@ -396,35 +396,6 @@ all that is required is that the requested query parameters exist.
 This uses the ActionRole L<Catalyst::ActionRole::QueryParameter> under the hood, which
 you may wish to review for more details.
 
-=head2 Matching GET parameters against an interface
-
-In some cases it might be preferred to match GET parameters to an interface, rather than
-to name and apply constraints to a long list of parameters.  This can promote better code
-reuse and conciseness at some cost to immediate understanding.  For example:
-
-    package MyApp::Controller::Example;
-
-    use Moose;
-    use MooseX::MethodAttributes;
-    use MyApp::Types qw/SearchParams/;
-
-    extends 'Catalyst::Controller';
-    with 'Catalyst::ControllerRole::At';
-
-    sub query :At($action?{*:SearchParams}) {
-      my ($self, $c, $id) = @_;     
-    }
-
-    __PACKAGE__->meta->make_immutable;
-
-In this case the '*' indicates that the constraint C<SearchParams> is to recieve all the GET parameters
-as a reference (it basically gets the value stored in $c->request->query_parameters).
-
-Please see L<Catalyst::ActionRole::QueryParameter>  for more.
-
-B<NOTE> If you use this type of GET query parameter constraint, your query keys will not
-be mapped to %_, as they do if you explicitly name them.
-
 =head2 Chaining Actions inside a Controller
 
 L<Catalyst> action chaining allows you to spread the logic associated with a given URL
