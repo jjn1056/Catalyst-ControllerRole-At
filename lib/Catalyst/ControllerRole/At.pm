@@ -25,6 +25,21 @@ sub _parse_At_attr {
   my @arg_proto;
   my @named_fields;
 
+  if($query) {
+    my @q = ($query=~m/{(.+?)}/g);
+    $extra_proto{QueryParam} = \@q;
+    foreach my $q (@q) {
+      warn "xfsdfsdfsdfsdfsdf $q";
+      my ($q_part, $type) = split(':', $q);
+      if(defined($q_part)) {
+        warn "rrrrr $q_part";
+        $extra_proto{Field} = $extra_proto{Field} ?
+          "$extra_proto{Field},$q_part=>\$query{$q_part}" : "$q_part=>\$query{$q_part}"
+      }
+    }
+
+  }
+
   if(($path_parts[-1]||'') eq '...') {
     $arg_type = 'CaptureArgs';
     pop @path_parts;
@@ -73,9 +88,9 @@ sub _parse_At_attr {
 
   my %attributes = (
     Chained   => $chained,
-    PathPart  => $path_part, 
+    PathPart  => $path_part,
+    Does => [qw/NamedFields QueryParameter/],
     $arg_type => (@arg_proto ? (join(',',@arg_proto)) : $args),
-    ($extra_proto{Field} ? (Does=>'NamedFields') : ()),
     %extra_proto,
   );
 
@@ -296,11 +311,13 @@ variable expansions in your URL template specification:
     $action: The action namespace (same as $controller/$method)
     $up: The namespace of the controller containing this controller
     $method: The name of your action (the subroutine name)
+    $affix: The last part of the controller namespace.
 
 For example if your controller is 'MyApp::Controller::User::Details' then:
 
     $controller => /user/details
     $up => /user
+    $affix => /details
 
 And if 'MyApp::Controller::User::Details' contained an action like:
 

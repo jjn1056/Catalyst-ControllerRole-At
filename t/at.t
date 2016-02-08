@@ -54,6 +54,21 @@
 
   sub find :Via(people) At({id:Int}) { } 
 
+  package MyApp::Controller::People::Places;
+  $INC{'MyApp/Controller/People/Places.pm'} = __FILE__;
+
+  use Moose;
+  use MooseX::MethodAttributes;
+
+  extends 'Catalyst::Controller';
+  with 'Catalyst::ControllerRole::At';
+  use Types::Standard qw/Int Str/;
+
+  sub places :Via($up/people) :At($affix/{name:Str}?{p:Int}{rows:Int}) {
+    $_->res->body($_{p});
+  }
+
+
   package MyApp::Controller::User::Records;
   $INC{'MyApp/Controller/User/Records.pm'} = __FILE__;
 
@@ -111,6 +126,13 @@
 use Test::Most;
 use HTTP::Request::Common;
 use Catalyst::Test 'MyApp';
+
+
+{
+  ok my $res = request GET "/people/places/newyork?p=1&rows=10";
+  is $res->code, 200;
+  is $res->content, '1';
+}
 
 {
   ok my $res = request GET "/user/parent/100";
