@@ -7,32 +7,50 @@ sub _parse_At_attr {
   my ($chained, $path_part, $arg_type, $args, %extra_proto) = ('/','','Args',0, ());
   
   my @controller_path_parts = split('/', $self->path_prefix($app));
+  my @parent_controller_path_parts = @controller_path_parts;
+  pop @parent_controller_path_parts;
+
   my %expansions = (
-    # '$up' => ,
-    #'$parent' => ,
-    '$subname' => $action_subname,
+    '$up' => '/' . join('/', @parent_controller_path_parts),
+    '$parent' =>  '/' . join('/', @parent_controller_path_parts, $action_subname),
+    '$name' => $action_subname,
     '$controller' => '/' . join('/', @controller_path_parts),
     '$action' => '/' . join('/', @controller_path_parts, $action_subname),
   );
 
   my ($path, $query) = split('\?', $value);
-  my ($root, @path_parts) = split('/', $path);
+  my (@path_parts) = map { $expansions{$_} ? $expansions{$_} :$_ } split('/', $path);
 
   my @arg_proto;
+  my @named_fields;
   while(my ($spec) = ($path_parts[-1] =~m/^{(.*)}$/)) {
     if($spec) {
       my ($name, $constraint) = split(':', $spec);
-      unshift @arg_proto, $constraint;
+      unshift @arg_proto, $constraint if $constraint;
       if($name) {
-        $extra_proto{Field} = $extra_proto{Field} ? "$extra_proto{Field},\$args[$args]" : "$name=>\$args[$args]";
+        if($name eq '*') {
+          $args = undef;
+        } else {
+          unshift @named_fields, $name;
+        }
+      } else {
+        unshift @named_fields, undef;
       }
     }
-
-    $args++;
+    $args++ if defined $args;
     pop @path_parts;
   }
 
-
+  {
+    my $cnt = 0;
+    foreach my $name (@named_fields) {
+      if(defined($name)) {
+        $extra_proto{Field} = $extra_proto{Field} ?
+          "$extra_proto{Field},$name=>\$args[$cnt]" : "$name=>\$args[$cnt]"
+      }
+      $cnt++;
+    }
+  }
 
   if(
     my $via = grep { $_ =~m/^Via\((.+)\)$/; $1 } 
@@ -47,20 +65,27 @@ sub _parse_At_attr {
   #warn $value;
 
   use Devel::Dwarn;
+  #Dwarn \@path_parts;
   #Dwarn \%expansions;
+  #Dwarn \@arg_proto;
   #Dwarn \%extra_proto;
 
   $path_part = join('/', @path_parts);
+  $path_part =~s/^\///;
 
 
 
-  return (
+  my %attributes = (
     Chained   => $chained,
     PathPart  => $path_part, 
     $arg_type => (@arg_proto ? (join(',',@arg_proto)) : $args),
     ($extra_proto{Field} ? (Does=>'NamedFields') : ()),
     %extra_proto,
   );
+
+  Dwarn \%attributes;
+
+  return %attributes;
 }
 
 1;
@@ -271,9 +296,9 @@ to make this and other common action template patterns easier, we support the fo
 variable expansions in your URL template specification:
 
     $controller: Your controller namespace (as an absolute path)
-    $up: The namespace of the controller containing this controller
-    $subname The name of your action (the subroutine name)
     $action: The action namespace (same as $controller/$method)
+    $up: The namespace of the controller containing this controller
+    $method: The name of your action (the subroutine name)
 
 For example if your controller is 'MyApp::Controller::User::Details' then:
 
@@ -286,7 +311,7 @@ And if 'MyApp::Controller::User::Details' contained an action like:
 
 then:
 
-    $subname => list
+    $name => /list
     $action => /user/details/list
 
 You use these variable expansions the same way as literal paths:
@@ -304,7 +329,7 @@ You use these variable expansions the same way as literal paths:
       my ($self, $c, $id) = @_;     
     }
 
-    sub list :At($subname) { ... }
+    sub list :At($action) { ... }
 
     __PACKAGE__->meta->make_immutable;
 
@@ -630,6 +655,12 @@ so that I can make my controllers more concise:
 You can of course doa  lot more here if you want but I usually recommend
 the lightest touch possible in your base controllers since the more you customize
 the harder it might be for people new to the code to debug the system.
+
+=head1 TODO
+
+    - HTTP Methods
+    - Incoming Content type matching
+    - ??Content Negotiation??
 
 =head1 AUTHOR
  

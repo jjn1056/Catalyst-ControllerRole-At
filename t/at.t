@@ -24,6 +24,31 @@
     $_->res->body($_{str});
   }
 
+  sub controller :At($controller/aaa/{:Int}/{name:Str}) {
+    my ($self, $c, $arg1, $arg2) = @_;
+    $_->res->body($_{name});
+  }
+
+  sub me :At($action/{id:Int}/) {
+    my ($self, $c, $arg1) = @_;
+    $_->res->body($_{id});
+  }
+
+  sub this :At($name/{*}/) {
+    my ($self, $c, @args) = @_;
+    $c->res->body(join ',',@args);
+  }
+
+  sub up :At($up/aaa/{:Int}/{name:Str}) {
+    my ($self, $c, $arg1, $arg2) = @_;
+    $_->res->body($_{name});
+  }
+
+  sub parent :At($parent/{id:Int}/) {
+    my ($self, $c, $arg1) = @_;
+    $_->res->body($_{id});
+  }
+
   __PACKAGE__->meta->make_immutable;
 
   package MyApp;
@@ -35,6 +60,43 @@
 use Test::Most;
 use HTTP::Request::Common;
 use Catalyst::Test 'MyApp';
+
+{
+  ok my $res = request GET "/user/parent/100";
+  is $res->code, 200;
+  is $res->content, '100';
+}
+
+
+{
+  ok my $res = request GET "/user/aaa/100/john";
+  is $res->code, 200;
+  is $res->content, 'john';
+}
+
+{
+  ok my $res = request GET "/this/1/2/3/4";
+  is $res->code, 200;
+  is $res->content, '1,2,3,4';
+}
+
+{
+  ok my $res = request GET "/this/200";
+  is $res->code, 200;
+  is $res->content, '200';
+}
+
+{
+  ok my $res = request GET "/user/records/me/100";
+  is $res->code, 200;
+  is $res->content, '100';
+}
+
+{
+  ok my $res = request GET "/user/records/aaa/100/john";
+  is $res->code, 200;
+  is $res->content, 'john';
+}
 
 {
   ok my $res = request GET "/global/1/2";
@@ -52,15 +114,17 @@ use Catalyst::Test 'MyApp';
 }
 
 {
-  ok my $res = request GET "/int/100/333";
+  ok my $res = request GET "/int/100/hi";
   is $res->code, 200;
-  is $res->content, '333';
+  is $res->content, 'hi';
 }
   
 {
   ok my $res = request GET "/int/xxx/xxxs";
   is $res->code, 500;
 }
+
+
 
 done_testing;
 
