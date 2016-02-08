@@ -29,10 +29,8 @@ sub _parse_At_attr {
     my @q = ($query=~m/{(.+?)}/g);
     $extra_proto{QueryParam} = \@q;
     foreach my $q (@q) {
-      warn "xfsdfsdfsdfsdfsdf $q";
       my ($q_part, $type) = split(':', $q);
       if(defined($q_part)) {
-        warn "rrrrr $q_part";
         $extra_proto{Field} = $extra_proto{Field} ?
           "$extra_proto{Field},$q_part=>\$query{$q_part}" : "$q_part=>\$query{$q_part}"
       }
@@ -79,7 +77,7 @@ sub _parse_At_attr {
     my ($key, $value) = map { $_ =~ /^(.*?)(?:\(\s*(.+?)\s*\))?$/ } grep { $_ =~m/^Via\(.+\)$/ } 
       @{$self->meta->get_method($action_subname)->attributes||[]})
   {
-    $chained = join '/', grep { warn "vv $_ vv"; defined $_  } map { $expansions{$_} ? $expansions{$_} : $_ } split('\/',$value);
+    $chained = join '/', grep { defined $_  } map { $expansions{$_} ? $expansions{$_} : $_ } split('\/',$value);
     $chained =~s[//][/]g;
   }
 
