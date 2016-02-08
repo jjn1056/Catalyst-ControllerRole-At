@@ -207,11 +207,13 @@ variable expansions in your URL template specification:
     $action: The action namespace (same as $controller/$method)
     $up: The namespace of the controller containing this controller
     $method: The name of your action (the subroutine name)
+    $affix: The last part of the controller namespace.
 
 For example if your controller is 'MyApp::Controller::User::Details' then:
 
     $controller => /user/details
     $up => /user
+    $affix => /details
 
 And if 'MyApp::Controller::User::Details' contained an action like:
 
