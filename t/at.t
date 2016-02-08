@@ -1,5 +1,59 @@
 
 {
+
+  package MyApp::Controller::Root;
+  $INC{'MyApp/Controller/Root.pm'} = __FILE__;
+
+  use Moose;
+  use MooseX::MethodAttributes;
+  use Types::Standard qw/Int Str/;
+
+  extends 'Catalyst::Controller';
+  with 'Catalyst::ControllerRole::At';
+
+  sub root :At($controller/...) { }
+
+    sub entities :Via(root) At() {
+      my ($self, $c) = @_;
+      return $c->body('entities');
+    }
+
+    sub not_found :Via(root) At({*}) {
+      my ($self, $c, @args) = @_;
+      $c->res->status(400);
+      $c->res->body(join ',',@args);
+    }
+
+  MyApp::Controller::Root->config(namespace=>'');
+
+  package MyApp::Controller::Collection;
+  $INC{'MyApp/Controller/Collections.pm'} = __FILE__;
+
+  use Moose;
+  use MooseX::MethodAttributes;
+  use Types::Standard qw/Int Str/;
+
+  extends 'Catalyst::Controller';
+  with 'Catalyst::ControllerRole::At';
+
+  sub entity_name :Via($parent) At({name}/...) { }
+
+  sub view :Via(entity_name) At() { } 
+
+  package MyApp::Controller::People;
+  $INC{'MyApp/Controller/People.pm'} = __FILE__;
+
+  use Moose;
+  use MooseX::MethodAttributes;
+  use Types::Standard qw/Int Str/;
+
+  extends 'Catalyst::Controller';
+  with 'Catalyst::ControllerRole::At';
+
+  sub people :Via($up/root) At($affix/...) { }
+
+  sub find :Via(people) At({id:Int}) { } 
+
   package MyApp::Controller::User::Records;
   $INC{'MyApp/Controller/User/Records.pm'} = __FILE__;
 
@@ -10,7 +64,6 @@
   extends 'Catalyst::Controller';
   with 'Catalyst::ControllerRole::At';
 
-  # http://localhost/global/$arg/$arg 
   sub global :At(/global/{}/{}) {
     my ($self, $c, $arg1, $arg2) = @_;
   }
@@ -48,8 +101,6 @@
     my ($self, $c, $arg1) = @_;
     $_->res->body($_{id});
   }
-
-  __PACKAGE__->meta->make_immutable;
 
   package MyApp;
   use Catalyst;
@@ -110,7 +161,7 @@ use Catalyst::Test 'MyApp';
   
 {
   ok my $res = request GET "/int/xxx";
-  is $res->code, 500;
+  is $res->code, 400;
 }
 
 {
@@ -121,7 +172,7 @@ use Catalyst::Test 'MyApp';
   
 {
   ok my $res = request GET "/int/xxx/xxxs";
-  is $res->code, 500;
+  is $res->code, 400;
 }
 
 

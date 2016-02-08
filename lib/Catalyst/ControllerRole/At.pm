@@ -8,7 +8,7 @@ sub _parse_At_attr {
   
   my @controller_path_parts = split('/', $self->path_prefix($app));
   my @parent_controller_path_parts = @controller_path_parts;
-  pop @parent_controller_path_parts;
+  my $affix = pop @parent_controller_path_parts;
 
   my %expansions = (
     '$up' => '/' . join('/', @parent_controller_path_parts),
@@ -16,14 +16,21 @@ sub _parse_At_attr {
     '$name' => $action_subname,
     '$controller' => '/' . join('/', @controller_path_parts),
     '$action' => '/' . join('/', @controller_path_parts, $action_subname),
+    '$affix' =>  '/' . ($affix||''),
   );
 
-  my ($path, $query) = split('\?', $value);
-  my (@path_parts) = map { $expansions{$_} ? $expansions{$_} :$_ } split('/', $path);
+  my ($path, $query) = split('\?', ($value||''));
+  my (@path_parts) = map { $expansions{$_} ? $expansions{$_} :$_ } split('/', ($path||''));
 
   my @arg_proto;
   my @named_fields;
-  while(my ($spec) = ($path_parts[-1] =~m/^{(.*)}$/)) {
+
+  if(($path_parts[-1]||'') eq '...') {
+    $arg_type = 'CaptureArgs';
+    pop @path_parts;
+  }
+
+  while(my ($spec) = (($path_parts[-1]||'') =~m/^{(.*)}$/)) {
     if($spec) {
       my ($name, $constraint) = split(':', $spec);
       unshift @arg_proto, $constraint if $constraint;
@@ -38,6 +45,7 @@ sub _parse_At_attr {
       }
     }
     $args++ if defined $args;
+  } continue {
     pop @path_parts;
   }
 
@@ -53,27 +61,15 @@ sub _parse_At_attr {
   }
 
   if(
-    my $via = grep { $_ =~m/^Via\((.+)\)$/; $1 } 
+    my ($key, $value) = map { $_ =~ /^(.*?)(?:\(\s*(.+?)\s*\))?$/ } grep { $_ =~m/^Via\(.+\)$/ } 
       @{$self->meta->get_method($action_subname)->attributes||[]})
   {
-    # expand placeholders
-    # set $chained
-    warn $via;
+    $chained = join '/', grep { warn "vv $_ vv"; defined $_  } map { $expansions{$_} ? $expansions{$_} : $_ } split('\/',$value);
+    $chained =~s[//][/]g;
   }
-
-  # warn $action_subname;
-  #warn $value;
-
-  use Devel::Dwarn;
-  #Dwarn \@path_parts;
-  #Dwarn \%expansions;
-  #Dwarn \@arg_proto;
-  #Dwarn \%extra_proto;
 
   $path_part = join('/', @path_parts);
   $path_part =~s/^\///;
-
-
 
   my %attributes = (
     Chained   => $chained,
@@ -83,7 +79,8 @@ sub _parse_At_attr {
     %extra_proto,
   );
 
-  Dwarn \%attributes;
+  use Devel::Dwarn;
+  Dwarn [ $action_subname => \%attributes ];
 
   return %attributes;
 }
