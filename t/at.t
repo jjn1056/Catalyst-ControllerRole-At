@@ -1,5 +1,15 @@
 
 {
+  package MyApp::BaseController;
+  $INC{'MyApp/BaseController.pm'} = __FILE__;
+
+  use Moose::Role;
+  use MooseX::MethodAttributes::Role;
+  use Types::Standard qw/Int/;
+
+  sub from_role :At(/role/{id:Int}) {
+    $_->res->body($_{id});
+  }
 
   package MyApp::Controller::Root;
   $INC{'MyApp/Controller/Root.pm'} = __FILE__;
@@ -59,10 +69,12 @@
 
   use Moose;
   use MooseX::MethodAttributes;
+  use Types::Standard qw/Int Str/;
 
   extends 'Catalyst::Controller';
   with 'Catalyst::ControllerRole::At';
-  use Types::Standard qw/Int Str/;
+  with 'MyApp::BaseController';
+  
 
   sub places :Via($up/people) :At($affix/{name:Str}?{p:Int}{rows:Int}) {
     $_->res->body($_{p});
@@ -127,6 +139,11 @@ use Test::Most;
 use HTTP::Request::Common;
 use Catalyst::Test 'MyApp';
 
+{
+  ok my $res = request GET "/role/999";
+  is $res->code, 200;
+  is $res->content, '999';
+}
 
 {
   ok my $res = request GET "/people/places/newyork?p=1&rows=10";
@@ -139,7 +156,6 @@ use Catalyst::Test 'MyApp';
   is $res->code, 200;
   is $res->content, '100';
 }
-
 
 {
   ok my $res = request GET "/user/aaa/100/john";
