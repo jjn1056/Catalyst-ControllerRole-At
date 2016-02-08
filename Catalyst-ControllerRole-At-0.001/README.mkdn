@@ -1,109 +1,8 @@
-package Catalyst::ControllerRole::At;
-
-use Moose::Role;
-
-sub _parse_At_attr {
-  my ($self, $app, $action_subname, $value) = @_;
-  my ($chained, $path_part, $arg_type, $args, %extra_proto) = ('/','','Args',0, ());
-  
-  my @controller_path_parts = split('/', $self->path_prefix($app));
-  my @parent_controller_path_parts = @controller_path_parts;
-  my $affix = pop @parent_controller_path_parts;
-
-  my %expansions = (
-    '$up' => '/' . join('/', @parent_controller_path_parts),
-    '$parent' =>  '/' . join('/', @parent_controller_path_parts, $action_subname),
-    '$name' => $action_subname,
-    '$controller' => '/' . join('/', @controller_path_parts),
-    '$action' => '/' . join('/', @controller_path_parts, $action_subname),
-    '$affix' =>  '/' . ($affix||''),
-  );
-
-  my ($path, $query) = split('\?', ($value||''));
-  my (@path_parts) = map { $expansions{$_} ? $expansions{$_} :$_ } split('/', ($path||''));
-
-  my @arg_proto;
-  my @named_fields;
-
-  if($query) {
-    my @q = ($query=~m/{(.+?)}/g);
-    $extra_proto{QueryParam} = \@q;
-    foreach my $q (@q) {
-      warn "xfsdfsdfsdfsdfsdf $q";
-      my ($q_part, $type) = split(':', $q);
-      if(defined($q_part)) {
-        warn "rrrrr $q_part";
-        $extra_proto{Field} = $extra_proto{Field} ?
-          "$extra_proto{Field},$q_part=>\$query{$q_part}" : "$q_part=>\$query{$q_part}"
-      }
-    }
-
-  }
-
-  if(($path_parts[-1]||'') eq '...') {
-    $arg_type = 'CaptureArgs';
-    pop @path_parts;
-  }
-
-  while(my ($spec) = (($path_parts[-1]||'') =~m/^{(.*)}$/)) {
-    if($spec) {
-      my ($name, $constraint) = split(':', $spec);
-      unshift @arg_proto, $constraint if $constraint;
-      if($name) {
-        if($name eq '*') {
-          $args = undef;
-        } else {
-          unshift @named_fields, $name;
-        }
-      } else {
-        unshift @named_fields, undef;
-      }
-    }
-    $args++ if defined $args;
-  } continue {
-    pop @path_parts;
-  }
-
-  {
-    my $cnt = 0;
-    foreach my $name (@named_fields) {
-      if(defined($name)) {
-        $extra_proto{Field} = $extra_proto{Field} ?
-          "$extra_proto{Field},$name=>\$args[$cnt]" : "$name=>\$args[$cnt]"
-      }
-      $cnt++;
-    }
-  }
-
-  if(
-    my ($key, $value) = map { $_ =~ /^(.*?)(?:\(\s*(.+?)\s*\))?$/ } grep { $_ =~m/^Via\(.+\)$/ } 
-      @{$self->meta->get_method($action_subname)->attributes||[]})
-  {
-    $chained = join '/', grep { warn "vv $_ vv"; defined $_  } map { $expansions{$_} ? $expansions{$_} : $_ } split('\/',$value);
-    $chained =~s[//][/]g;
-  }
-
-  $path_part = join('/', @path_parts);
-  $path_part =~s/^\///;
-
-  my %attributes = (
-    Chained   => $chained,
-    PathPart  => $path_part,
-    Does => [qw/NamedFields QueryParameter/],
-    $arg_type => (@arg_proto ? (join(',',@arg_proto)) : $args),
-    %extra_proto,
-  );
-
-  return %attributes;
-}
-
-1;
-
-=head1 NAME
+# NAME
 
 Catalyst::ControllerRole::At - A new approach to building Catalyst actions
 
-=head1 SYNOPSIS
+# SYNOPSIS
 
     package MyApp::Controller::User;
 
@@ -124,12 +23,12 @@ Catalyst::ControllerRole::At - A new approach to building Catalyst actions
 
     __PACKAGE__->meta->make_immutable;
 
-=head1 DESCRIPTION
+# DESCRIPTION
 
-The way L<Catalyst> uses method attributes to annote a subroutine with meta
+The way [Catalyst](https://metacpan.org/pod/Catalyst) uses method attributes to annote a subroutine with meta
 information used to map that action to an incoming request has sometimes been difficult
 for newcomers to the framework.  Partly this is due to how the system evolved and was
-augmented, with more care towards backwards compatibility (for example with L<Maypole>, its
+augmented, with more care towards backwards compatibility (for example with [Maypole](https://metacpan.org/pod/Maypole), its
 architectural anscestor) than with designing a forward system that is easy to grasp.
 Additionally aspects of the system such as chained dispatch are very useful in the
 hands of an expert but the interface leaves a lot to be desired.  For example it is
@@ -137,7 +36,7 @@ possible to craft actions that mix chaining syntax with 'classic' syntax in ways
 are confusing.  And having more than one way to do the same thing without clear and
 obvious benefits is confusing to newcomers.
 
-Lastly, the core L<Catalyst::Controller> syntax has confusing defaults that are not readily guessed.
+Lastly, the core [Catalyst::Controller](https://metacpan.org/pod/Catalyst::Controller) syntax has confusing defaults that are not readily guessed.
 For example do you know the difference (if any) between Args and Args()?  Or the difference
 between Path, Path(''), and Path()?  In many cases defaults are applied that were not
 intended and things that you might think are the same turn out to have different effects.  All
@@ -159,18 +58,18 @@ Ultimately this ControllerRole is an attempt to layer some sugar on top of the e
 interface with the hope to establishing a normalized, easy approach that doesn't have the
 learning curve or confusion of the existing system.
 
-I also recommend reading L<Catalyst::RouteMatching> for general notes and details on
+I also recommend reading [Catalyst::RouteMatching](https://metacpan.org/pod/Catalyst::RouteMatching) for general notes and details on
 how dispatching and matching works.
 
-=head1 URL Templating
+# URL Templating
 
 The following are examples and specification for how to map a URL to an action or to
-a chain of actions in L<Catalyst>. All examples assume the application is running at
+a chain of actions in [Catalyst](https://metacpan.org/pod/Catalyst). All examples assume the application is running at
 the root of your website domain (https://localhost/, not https://localhost/somepath)
 
-=head2 Matching a Literal Path
+## Matching a Literal Path
 
-The action 'global_path' will respond to 'https://localhost/foo/bar/baz'.
+The action 'global\_path' will respond to 'https://localhost/foo/bar/baz'.
 
     package MyApp::Controller::Example;
 
@@ -185,11 +84,11 @@ The action 'global_path' will respond to 'https://localhost/foo/bar/baz'.
     __PACKAGE__->meta->make_immutable;
 
 The main two parts are consuming the role c< with 'Catalyst::ControllerRole::At'>
-and using the C<At> method attribute.  This attribute can only appear once in your
+and using the `At` method attribute.  This attribute can only appear once in your
 action and should be string that matches a specification as to be described in the
 following examples.
 
-=head2 Arguments in a Path specification
+## Arguments in a Path specification
 
 Often you wish to parameterize your URL template such that instead of matching a full
 literal path, you may instead place slots for placeholders, which get passed to the
@@ -222,20 +121,20 @@ ended number of placeholders:
 In this case action 'arg2' matches its path with 2 arguments, while 'args' will match
 'any number of arguments', subject to operating system limitations.
 
-B<NOTE> Since the open ended argument specification can catch lots of URLs, this type
+**NOTE** Since the open ended argument specification can catch lots of URLs, this type
 of argument specification is run as a special 'low priorty' match.  For example (using
 the above two actions) should the request be 'https://localhost/example/foo/bar', then
 the first action 'arg2' would match since its a better match for that request given it
-has a more constrained specification. In general I recommend using '{*}' sparingly.
+has a more constrained specification. In general I recommend using '{\*}' sparingly.
 
-B<NOTE> Placeholder must come after path part literals or expansion variables as discussed
+**NOTE** Placeholder must come after path part literals or expansion variables as discussed
 below.  For example "At(/bar/{}/bar)" is not valid.  This type of match is possible with
 chained actions (see more examples below).
 
-=head2 Naming your Arguments
+## Naming your Arguments
 
 You may name your argument placeholders.  If you do so you can access your argument
-placeholder values via the %_ hash.  For example:
+placeholder values via the %\_ hash.  For example:
 
     sub args :At(/example/{id}) {
       my ($self, $c, $id) = @_;
@@ -243,12 +142,12 @@ placeholder values via the %_ hash.  For example:
     }
 
 Note that regardless of whether you name your arguments or not, they will get passed to
-your actions at request via @_, as in core L<Catalyst>.  So in the above example '$id'
-is equal to '$_{id}'.  You may use whichever makes the most sense for your task, or
+your actions at request via @\_, as in core [Catalyst](https://metacpan.org/pod/Catalyst).  So in the above example '$id'
+is equal to '$\_{id}'.  You may use whichever makes the most sense for your task, or
 standardize a project on one form or the other.  You might also find naming the arguments
 to be a useful form of documentation.
 
-=head2 Type constraints on your Arguments
+## Type constraints on your Arguments
 
 You may leverage the built in support for applying type constraints on your arguments:
 
@@ -269,9 +168,9 @@ You may leverage the built in support for applying type constraints on your argu
 
 Would match 'http://localhost/example/100' but not 'http://localhost/example/string'
 
-All the same rules that apply to L<Catalyst> regarding use of type constraints apply.  Most
+All the same rules that apply to [Catalyst](https://metacpan.org/pod/Catalyst) regarding use of type constraints apply.  Most
 importantly you must remember to inport your type constraints, as in the above example.  You
-should consider reviewing L<Catalyst::RouteMatching> for more general help.
+should consider reviewing [Catalyst::RouteMatching](https://metacpan.org/pod/Catalyst::RouteMatching) for more general help.
 
 You may declare a type constraint on an argument but not name it, as in the following
 example:
@@ -282,11 +181,11 @@ example:
 
 Note the ':' prepended to the type constraint name is NOT optional.
 
-B<NOTE> Using type constraints in your route matching can have performance implications.
+**NOTE** Using type constraints in your route matching can have performance implications.
 
-B<NOTE> If you have more than one argument placeholder and you apply a type constraint to
-one, you must apply constraints to all.  You may use an open type constraint like C<Any>
-as defined in L<Types::Standard> for placeholders where you don't care what the value is.  For
+**NOTE** If you have more than one argument placeholder and you apply a type constraint to
+one, you must apply constraints to all.  You may use an open type constraint like `Any`
+as defined in [Types::Standard](https://metacpan.org/pod/Types::Standard) for placeholders where you don't care what the value is.  For
 example:
 
     use Types::Standard qw/Any Int/;
@@ -295,7 +194,7 @@ example:
       my ($self, $c, $id) = @_;     
     }
 
-=head2 Expansion Variables in your Path
+## Expansion Variables in your Path
 
 Generally you would prefer not to hardcode the full path of your actions, as in the
 examples given so far.  General Catalyst best practice is to have your actions live
@@ -350,7 +249,7 @@ considered an argument) while action 'list' would match 'https::/localhost/examp
 You can use expansion variables in your base controllers or controller roles to more
 easily make shared actions.
 
-B<NOTE> Your controller namespace is typically based on its package name, unless you
+**NOTE** Your controller namespace is typically based on its package name, unless you
 have overridden it by setting an alternative in the configuation value 'namespace', or
 your have in some way overridden the logic that produces a namespace.  The default
 behavior is to produce a namespace like the following:
@@ -361,10 +260,10 @@ behavior is to produce a namespace like the following:
 Changing the way a controller defines its namespace will also change how actions that are
 defined in that controller defines thier namespaces.
 
-B<NOTE> WHen using expansions, you should not place a '/' at the start of your
+**NOTE** WHen using expansions, you should not place a '/' at the start of your
 template URI.
 
-=head2 Matching GET parameters
+## Matching GET parameters
 
 You can match GET (query) parameters in your URL template definitions:
 
@@ -385,21 +284,21 @@ You can match GET (query) parameters in your URL template definitions:
 
 This would match 'https://example/query?name=john;age=47'.
 
-Your query keys will appear in the %_ in the same way as all your named arguments.
+Your query keys will appear in the %\_ in the same way as all your named arguments.
 
 You do not need to use a type constraint on the query parameters.  If you do not do so
 all that is required is that the requested query parameters exist.
 
-This uses the ActionRole L<Catalyst::ActionRole::QueryParameter> under the hood, which
+This uses the ActionRole [Catalyst::ActionRole::QueryParameter](https://metacpan.org/pod/Catalyst::ActionRole::QueryParameter) under the hood, which
 you may wish to review for more details.
 
-=head2 Chaining Actions inside a Controller
+## Chaining Actions inside a Controller
 
-L<Catalyst> action chaining allows you to spread the logic associated with a given URL
+[Catalyst](https://metacpan.org/pod/Catalyst) action chaining allows you to spread the logic associated with a given URL
 across a set of actions which all are responsible for handling a part of the URL
 template.  The idea is to allow you to better decompose your logic to promote clarity
 and reuse.  However the built-in syntax for declaring action chains is difficult for
-many people to use.  Here's how you do it with L<Catalyst::ControllerRole::At>
+many people to use.  Here's how you do it with [Catalyst::ControllerRole::At](https://metacpan.org/pod/Catalyst::ControllerRole::At)
 
 Starting a Chain of actions is straightforward.  you just add '/...' to the end of your
 path specification.  This is to indicate that the action expects more parts 'to follow'.
@@ -440,8 +339,8 @@ This defines an action chain with three 'stops' which matches a URL like (for ex
 'https://localhost/$controller/arg1/arg2'.  Each action will get executed for the matching
 part, and will get arguments as defined in their match specification.
 
-B<NOTE> The 'Via' attribute must contain a value.
- 
+**NOTE** The 'Via' attribute must contain a value.
+
 When chaining you can use (or not) any mix of type constraints on your arguments, named
 arguments, and query parameter matching.  Here's a full example:
 
@@ -466,7 +365,7 @@ arguments, and query parameter matching.  Here's a full example:
 
     __PACKAGE__->meta->make_immutable;
 
-=head2 Actions in a Chain with no match template
+## Actions in a Chain with no match template
 
 Sometimes for the purposes of organizing code you will have an action that is a
 midpoint in a chain that does not match any part of a URL template.  For that
@@ -495,7 +394,7 @@ case you can omit the path and argument match specification.  For example:
 
 This will match a URL like 'https://localhost/example/100'.
 
-B<NOTE> If you declare a Via but not At, this is an error.  You must
+**NOTE** If you declare a Via but not At, this is an error.  You must
 always provide an At(), even in the case of a terminal action with no
 match parts of it own.  For example:
 
@@ -528,11 +427,11 @@ each of the three actions in the chain in order.  Although it might seem odd to
 create an action that is not connected to a path part of a URL request, you might find
 cases where this results in well factored and reusable controllers.
 
-B<NOTE> For the purposes of executing code, we treat 'At' and 'At()' as the same.  However
+**NOTE** For the purposes of executing code, we treat 'At' and 'At()' as the same.  However
 We highly recommend At() as a best practice since it more clearly represents the idea
 of 'no match template'.
 
-=head2 Chaining Actions across Controllers
+## Chaining Actions across Controllers
 
 The method attributes 'Via()' contains a pointer to the action being continued.  In
 standard practice this is almost always the name of an action in the same controller
@@ -621,7 +520,7 @@ With an action execution flow as follows:
         /thingstodo/item/init
         /thingstodo/item/delete
 
-=head1 COOKBOOK
+# COOKBOOK
 
 One thing I like to do is create a base controller for my project
 so that I can make my controllers more concise:
@@ -638,25 +537,23 @@ You can of course doa  lot more here if you want but I usually recommend
 the lightest touch possible in your base controllers since the more you customize
 the harder it might be for people new to the code to debug the system.
 
-=head1 TODO
+# TODO
 
     - HTTP Methods
     - Incoming Content type matching
     - ??Content Negotiation??
 
-=head1 AUTHOR
- 
-John Napiorkowski L<email:jjnapiork@cpan.org>
-  
-=head1 SEE ALSO
- 
-L<Catalyst>, L<Catalyst::Controller>.
- 
-=head1 COPYRIGHT & LICENSE
- 
-Copyright 2016, John Napiorkowski L<email:jjnapiork@cpan.org>
- 
+# AUTHOR
+
+John Napiorkowski [email:jjnapiork@cpan.org](email:jjnapiork@cpan.org)
+
+# SEE ALSO
+
+[Catalyst](https://metacpan.org/pod/Catalyst), [Catalyst::Controller](https://metacpan.org/pod/Catalyst::Controller).
+
+# COPYRIGHT & LICENSE
+
+Copyright 2016, John Napiorkowski [email:jjnapiork@cpan.org](email:jjnapiork@cpan.org)
+
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.
-
-=cut

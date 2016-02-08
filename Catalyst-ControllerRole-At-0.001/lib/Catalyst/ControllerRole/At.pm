@@ -94,6 +94,9 @@ sub _parse_At_attr {
     %extra_proto,
   );
 
+  use Devel::Dwarn;
+  Dwarn [ $action_subname => \%attributes ];
+
   return %attributes;
 }
 
