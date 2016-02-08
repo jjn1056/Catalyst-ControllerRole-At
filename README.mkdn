@@ -50,6 +50,10 @@ syntax based on Chaining by providing a single approach that bridges between the
 styles.  One can mix and match the two without being required to learn a new syntax or to
 rearchitect the system.
 
+The "At()" syntax more closely resembles the type of URL you are trying to match, which should
+make code creation and maintainance easier by reducing the mental mismatch that happens with
+the core syntax.
+
 Ultimately this ControllerRole is an attempt to layer some sugar on top of the existing
 interface with the hope to establishing a normalized, easy approach that doesn't have the
 learning curve or confusion of the existing system.
@@ -200,9 +204,9 @@ to make this and other common action template patterns easier, we support the fo
 variable expansions in your URL template specification:
 
     $controller: Your controller namespace (as an absolute path)
-    $up: The namespace of the controller containing this controller
-    $subname The name of your action (the subroutine name)
     $action: The action namespace (same as $controller/$method)
+    $up: The namespace of the controller containing this controller
+    $method: The name of your action (the subroutine name)
 
 For example if your controller is 'MyApp::Controller::User::Details' then:
 
@@ -215,7 +219,7 @@ And if 'MyApp::Controller::User::Details' contained an action like:
 
 then:
 
-    $subname => list
+    $name => /list
     $action => /user/details/list
 
 You use these variable expansions the same way as literal paths:
@@ -233,7 +237,7 @@ You use these variable expansions the same way as literal paths:
       my ($self, $c, $id) = @_;     
     }
 
-    sub list :At($subname) { ... }
+    sub list :At($action) { ... }
 
     __PACKAGE__->meta->make_immutable;
 
@@ -559,6 +563,12 @@ so that I can make my controllers more concise:
 You can of course doa  lot more here if you want but I usually recommend
 the lightest touch possible in your base controllers since the more you customize
 the harder it might be for people new to the code to debug the system.
+
+# TODO
+
+    - HTTP Methods
+    - Incoming Content type matching
+    - ??Content Negotiation??
 
 # AUTHOR
 
