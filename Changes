@@ -1,0 +1,8 @@
+Revision history for Perl extension Catalyst::ActionRole::QueryParameter
+ 
+0.002   8 February 2016
+        - Fixed missing version info
+
+0.001   8 February 2016
+        - First release
+

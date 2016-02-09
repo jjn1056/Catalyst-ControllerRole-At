@@ -1,6 +1,7 @@
 package Catalyst::ControllerRole::At;
 
 use Moose::Role;
+our $VERSION = '0.002';
 
 sub _parse_At_attr {
   my ($self, $app, $action_subname, $value) = @_;
