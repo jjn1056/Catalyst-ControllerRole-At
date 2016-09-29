@@ -1,7 +1,7 @@
 package Catalyst::ControllerRole::At;
 
 use Moose::Role;
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 sub _parse_At_attr {
   my ($self, $app, $action_subname, $value) = @_;
@@ -36,7 +36,6 @@ sub _parse_At_attr {
           "$extra_proto{Field},$q_part=>\$query{$q_part}" : "$q_part=>\$query{$q_part}"
       }
     }
-
   }
 
   if(($path_parts[-1]||'') eq '...') {
@@ -304,9 +303,9 @@ to make this and other common action template patterns easier, we support the fo
 variable expansions in your URL template specification:
 
     $controller: Your controller namespace (as an absolute path)
-    $action: The action namespace (same as $controller/$method)
+    $action: The action namespace (same as $controller/$name)
     $up: The namespace of the controller containing this controller
-    $method: The name of your action (the subroutine name)
+    $name The name of your action (the subroutine name)
     $affix: The last part of the controller namespace.
 
 For example if your controller is 'MyApp::Controller::User::Details' then:
@@ -551,7 +550,7 @@ use in the 'Via' attribute.  These are useful to enforce this best practice as w
 promote reusability by decoupling hard coded private action namespaces from your controller.
 
     $up: The controller whose namespace contains the current controller
-    $subname The name of the current actions subroutine
+    $name The name of the current actions subroutine
     $parent: Expands to $up/$subname
 
 For example:
@@ -568,7 +567,7 @@ For example:
       my ($self, $c) = @_;
     }
 
-      sub list :Via(init) At($subname) {
+      sub list :Via(init) At($name) {
         my ($self, $c) = @_;
       }
 
@@ -586,9 +585,9 @@ For example:
       my ($self, $c) = @_;
     }
 
-      sub show    :Via(init) At($subname) { ... }
-      sub update  :Via(init) At($subname) { ... }
-      sub delete  :Via(init) At($subname) { ... }
+      sub show    :Via(init) At($name) { ... }
+      sub update  :Via(init) At($name) { ... }
+      sub delete  :Via(init) At($name) { ... }
 
     __PACKAGE__->meta->make_immutable;
 
