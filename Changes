@@ -1,5 +1,8 @@
 Revision history for Perl extension Catalyst::ControllerRole::At
 
+0.005   30 September 2016
+        - Support default values in query parameters
+
 0.004   29 September 2016
         - Used newer versions of some dependencies for features and
           bug fixes.

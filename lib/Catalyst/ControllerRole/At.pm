@@ -1,7 +1,7 @@
 package Catalyst::ControllerRole::At;
 
 use Moose::Role;
-our $VERSION = '0.004';
+our $VERSION = '0.005';
 
 sub _parse_At_attr {
   my ($self, $app, $action_subname, $value) = @_;
@@ -20,7 +20,8 @@ sub _parse_At_attr {
     '$affix' =>  '/' . ($affix||''),
   );
 
-  my ($path, $query) = split('\?', ($value||''));
+  $value = $value . '';
+  my ($path, $query) = ($value=~/^([^?]*)\??(.*)$/);
   my (@path_parts) = map { $expansions{$_} ? $expansions{$_} :$_ } split('/', ($path||''));
 
   my @arg_proto;
@@ -32,6 +33,10 @@ sub _parse_At_attr {
     foreach my $q (@q) {
       my ($q_part, $type) = split(':', $q);
       if(defined($q_part)) {
+        if($q_part=~m/=/) {
+          ($q_part) = split('=', $q_part); # Discard any=default
+        }
+        $q_part=~s/^[!?]//;
         $extra_proto{Field} = $extra_proto{Field} ?
           "$extra_proto{Field},$q_part=>\$query{$q_part}" : "$q_part=>\$query{$q_part}"
       }

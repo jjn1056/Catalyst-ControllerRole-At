@@ -76,8 +76,8 @@
   with 'MyApp::BaseController';
   
 
-  sub places :Via($up/people) :At($affix/{name:Str}?{p:Int}{rows:Int}) {
-    $_->res->body($_{p});
+  sub places :Via($up/people) :At($affix/{name:Str}?{p=11:Int}{?rows:Int}) {
+    $_->res->body($_{p}.($_{rows}||'na'));
   }
 
 
@@ -146,12 +146,6 @@ use Catalyst::Test 'MyApp';
 }
 
 {
-  ok my $res = request GET "/people/places/newyork?p=1&rows=10";
-  is $res->code, 200;
-  is $res->content, '1';
-}
-
-{
   ok my $res = request GET "/user/parent/100";
   is $res->code, 200;
   is $res->content, '100';
@@ -211,6 +205,25 @@ use Catalyst::Test 'MyApp';
 {
   ok my $res = request GET "/int/xxx/xxxs";
   is $res->code, 400;
+}
+
+{
+  ok my $res = request GET "/people/places/newyork?p=1&rows=10";
+  is $res->code, 200;
+  is $res->content, '110';
+}
+
+{
+  ok my $res = request GET "/people/places/newyork?rows=10";
+  is $res->code, 200;
+  is $res->content, '1110';
+}
+
+
+{
+  ok my $res = request GET "/people/places/newyork?p=2";
+  is $res->code, 200;
+  is $res->content, '2na';
 }
 
 done_testing;
